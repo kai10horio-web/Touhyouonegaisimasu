@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>捜査用AI Pad - 爆弾予告事件解析モード</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      background-color: #0f172a;
+      color: #0f172a;
+      font-family: 'Courier New', Consolas, Monaco, 'Helvetica Neue', Arial, sans-serif;
+      margin: 0; padding: 15px;
+      display: flex; flex-direction: column; align-items: center;
+      min-height: 100vh; justify-content: center;
+      overflow-x: hidden; user-select: none; position: relative;
+      transition: background-color 1.5s ease;
+    }
+    body.system-hacked { background-color: #1a0505 !important; }
+    body.cyber-cleared {
+      background-color: #030712 !important;
+      background-image: radial-gradient(#0284c7 1px, transparent 1px), radial-gradient(#0284c7 1px, #030712 1px);
+      background-size: 40px 40px; background-position: 0 0, 20px 20px;
+    }
+    .screen-warp-active { animation: screen-warp-glitch 0.45s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important; }
+    @keyframes screen-warp-glitch {
+      0% { transform: translate(0, 0) skew(0deg, 0deg) scale(1); filter: none; }
+      15% { transform: translate(-12px, 8px) skew(15deg, -8deg) scale(1.03, 0.95); filter: hue-rotate(90deg) contrast(150%); }
+      35% { transform: translate(15px, -10px) skew(-20deg, 12deg) scale(0.96, 1.05); filter: hue-rotate(240deg) invert(10%); }
+      55% { transform: translate(-8px, -5px) skew(10deg, -5deg) scale(1.02, 0.98); filter: hue-rotate(180deg) saturate(200%); }
+      75% { transform: translate(6px, 10px) skew(-8deg, 6deg) scale(0.98, 1.02); filter: hue-rotate(45deg); }
+      100% { transform: translate(0, 0) skew(0deg, 0deg) scale(1); filter: none; }
+    }
+    .cctv-osd {
+      position: fixed; top: 15px; left: 20px; right: 20px;
+      display: flex; justify-content: space-between; color: #ef4444;
+      font-family: monospace; font-size: 0.85rem; font-weight: bold;
+      pointer-events: none; z-index: 9990; opacity: 0; visibility: hidden;
+      transition: opacity 0.8s ease, visibility 0.8s ease;
+    }
+    .cctv-osd.active { opacity: 0.85; visibility: visible; }
+    .rec-dot { color: #dc2626; animation: blink-fast 1s infinite alternate; }
+    .glass-cracks {
+      position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+      pointer-events: none; z-index: 9995;
+      stroke: #7f1d1d; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; fill: none;
+      filter: drop-shadow(0 0 10px rgba(239, 68, 68, 0.8)); opacity: 0; visibility: hidden;
+      transition: opacity 0.8s ease, visibility 0.8s ease;
+    }
+    .glass-cracks.active { opacity: 0.8; visibility: visible; }
+    .cracks-hacked { stroke: #ef4444 !important; stroke-width: 5 !important; filter: drop-shadow(0 0 15px rgba(239, 68, 68, 1)) !important; animation: crack-pulse 0.2s infinite alternate; }
+    @keyframes crack-pulse { 0% { opacity: 0.8; transform: scale(1); } 100% { opacity: 1; transform: scale(1.003); } }
+    .screen-overlay { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 9998; opacity: 0; transition: opacity 0.1s ease-in-out; }
+    #static-canvas { position: fixed; pointer-events: none; z-index: 9999; opacity: 0; mix-blend-mode: multiply; box-shadow: 0 0 10px rgba(0,0,0,0.2); }
+    .part-noise-flash { animation: part-noise-anim 0.22s ease-in-out !important; }
+    @keyframes part-noise-anim { 0% { opacity: 0; transform: scaleY(0.8); } 30% { opacity: 0.85; transform: scaleY(1.1) translateX(-3px); } 70% { opacity: 0.7; transform: scaleY(0.9) translateX(4px); } 100% { opacity: 0; transform: scaleY(1); } }
+    .strobe-red-05s { animation: hacking-strobe-05 0.5s infinite alternate !important; opacity: 1 !important; }
+
+    h1 { font-size: 1.4rem; color: #38bdf8; margin-top: 25px; margin-bottom: 12px; text-align: center; border-bottom: 2px solid #0284c7; padding-bottom: 8px; width: 100%; max-width: 600px; text-shadow: 0 0 8px rgba(56, 189, 248, 0.4); transition: color 0.5s; }
+    body.cyber-cleared h1 { color: #38bdf8 !important; text-shadow: 0 0 10px rgba(56, 189, 248, 0.6); }
+    .main-card { background-color: #1e293b; color: #38bdf8; border: 2px solid #0284c7; border-radius: 12px; width: 100%; max-width: 600px; padding: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); position: relative; transition: all 0.5s ease; }
+    body.cyber-cleared .main-card { border-color: #38bdf8; box-shadow: 0 0 30px rgba(56, 189, 248, 0.3); }
+    .hack-banner { background: #0f172a; border: 1px solid #0284c7; color: #38bdf8; text-align: center; font-weight: bold; font-size: 0.95rem; padding: 8px; border-radius: 6px; margin-bottom: 12px; letter-spacing: 1px; transition: all 0.2s ease; }
+    #auth-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 25px 10px; text-align: center; }
+    .start-auth-btn { background: linear-gradient(135deg, #0284c7, #0d9488); color: #ffffff; border: 2px solid #38bdf8; padding: 22px 30px; font-size: 1.4rem; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 0 20px rgba(2, 132, 199, 0.6); transition: all 0.3s ease; letter-spacing: 2px; margin-top: 15px; width: 90%; max-width: 400px; }
+    .start-auth-btn:hover { transform: scale(1.03); box-shadow: 0 0 30px rgba(56, 189, 248, 0.9); }
+    .start-auth-btn:active { transform: scale(0.97); }
+    .auth-scanning { animation: pulse-glow 0.8s infinite alternate ease-in-out; background: linear-gradient(135deg, #10b981, #059669) !important; border-color: #6ee7b7 !important; color: #ffffff !important; }
+    
+    .identify-btn { background: linear-gradient(135deg, #eab308, #ca8a04); color: #000; border: 2px solid #fef08a; padding: 20px 25px; font-size: 1.3rem; font-weight: bold; border-radius: 50px; cursor: pointer; box-shadow: 0 0 20px rgba(234, 179, 8, 0.6); transition: all 0.3s ease; letter-spacing: 2px; margin-top: 15px; width: 90%; max-width: 400px; }
+    .identify-btn:hover { transform: scale(1.03); box-shadow: 0 0 30px rgba(253, 224, 71, 0.9); }
+    
+    #investigation-screen { display: none; }
+    .display-area { background-color: #050811; border: 1px solid #334155; border-radius: 8px; min-height: 220px; max-height: 340px; overflow-y: auto; padding: 15px; margin-bottom: 15px; font-size: 0.98rem; line-height: 1.6; position: relative; }
+    .guidance-box { background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 0.9rem; line-height: 1.5; color: #fecaca; }
+    .btn-group { display: flex; flex-direction: column; gap: 12px; }
+    .mic-button { background: linear-gradient(135deg, #0284c7, #0369a1); color: #ffffff; border: 1px solid #38bdf8; padding: 14px; font-size: 0.92rem; font-weight: bold; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: flex-start; gap: 10px; transition: background 0.2s, transform 0.1s; text-align: left; }
+    .mic-button:disabled { cursor: not-allowed; opacity: 0.4; filter: grayscale(100%); }
+    .cancel-btn { background: linear-gradient(135deg, #dc2626, #991b1b) !important; border-color: #fca5a5 !important; color: #ffffff !important; margin-top: 10px; padding: 8px 16px; font-size: 0.9rem; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.2s; }
+    .mic-icon { font-size: 1.3rem; flex-shrink: 0; }
+    .mic-recording { animation: pulse-scale 0.6s infinite alternate ease-in-out; background: linear-gradient(135deg, #e11d48, #be123c) !important; box-shadow: 0 0 20px rgba(225, 29, 72, 0.8) !important; }
+    .pointing-btn { background: linear-gradient(135deg, #f59e0b, #d97706) !important; color: #000 !important; font-weight: bold; border: 2px solid #fbbf24 !important; padding: 10px 14px; border-radius: 8px; cursor: pointer; margin-top: 12px; width: 100%; box-shadow: 0 0 15px rgba(245, 158, 11, 0.6); animation: pulse-glow-yellow 1s infinite alternate; transition: all 0.2s; }
+    .pointing-btn:hover { transform: scale(1.02); }
+    .choice-group { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+    .choice-btn { background: #0f172a; color: #38bdf8; border: 1px solid #0284c7; padding: 10px; border-radius: 6px; cursor: pointer; text-align: left; font-weight: bold; font-size: 0.88rem; transition: background 0.2s; line-height: 1.4; }
+    .choice-btn:hover { background: #1e293b; border-color: #38bdf8; }
+    .glitch-shake { animation: crazy-shake 0.08s infinite alternate !important; }
+    .card-hacked { background-color: #450a0a !important; border-color: #ef4444 !important; box-shadow: 0 0 35px rgba(239, 68, 68, 0.8) !important; }
+    .banner-hacked { background: #7f1d1d !important; border-color: #f87171 !important; color: #fecaca !important; }
+    .error-text { color: #f87171; font-weight: bold; text-shadow: 0 0 5px rgba(248, 113, 113, 0.5); }
+    .ai-text { color: #4ade80; }
+    .hack-code { font-family: monospace; color: #dc2626; background-color: #000; padding: 2px 4px; word-break: break-all; font-weight: bold; }
+    .success-text { color: #38bdf8; font-weight: bold; }
+    @keyframes hacking-strobe-05 { 0% { background-color: rgba(220, 38, 38, 0.65); } 100% { background-color: rgba(0, 0, 0, 0.1); } }
+    @keyframes crazy-shake { 0% { transform: translate(0, 0); } 25% { transform: translate(-6px, 4px); } 50% { transform: translate(6px, -4px); } 75% { transform: translate(-4px, -3px); } 100% { transform: translate(4px, 3px); } }
+    @keyframes pulse-scale { 0% { transform: scale(1); } 100% { transform: scale(1.05); } }
+    @keyframes pulse-glow { 0% { transform: scale(1); box-shadow: 0 0 15px rgba(16, 185, 129, 0.5); } 100% { transform: scale(1.05); box-shadow: 0 0 35px rgba(110, 231, 183, 0.9); } }
+    @keyframes pulse-glow-yellow { 0% { transform: scale(1); box-shadow: 0 0 10px rgba(245, 158, 11, 0.4); } 100% { transform: scale(1.02); box-shadow: 0 0 20px rgba(251, 191, 36, 0.9); } }
+    @keyframes blink-fast { 0% { opacity: 1; } 100% { opacity: 0.3; } }
+  </style>
+</head>
+<body id="screen-body">
+
+  <svg class="glass-cracks" id="glass-cracks" viewBox="0 0 1000 1000" preserveAspectRatio="none">
+    <path d="M 0,0 L 80,60 L 140,90 L 210,120 M 80,60 L 50,130 L 70,190 M 80,60 L 160,45 L 220,50 M 140,90 L 190,140 M 140,90 L 110,170" />
+    <path d="M 1000,0 L 920,70 L 850,100 L 780,125 M 920,70 L 950,140 L 930,200 M 920,70 L 840,40 M 850,100 L 790,160" />
+    <path d="M 0,1000 L 90,910 L 160,870 L 230,830 M 90,910 L 40,840 L 60,780 M 90,910 L 170,950 M 160,870 L 210,800" />
+    <path d="M 1000,1000 L 910,920 L 840,880 L 770,840 M 910,920 L 960,840 M 910,920 L 820,960 M 840,880 L 790,810" />
+  </svg>
+
+  <div class="cctv-osd" id="cctv-osd">
+    <div>CAM-01 [ROOM-A] (HACKED)</div>
+    <div><span class="rec-dot">●</span> REC</div>
+  </div>
+
+  <div class="screen-overlay" id="overlay"></div>
+  <canvas id="static-canvas"></canvas>
+
+  <h1>捜査アシストAI Pad v2.4 (爆弾予告事件解析)</h1>
+
+  <div class="main-card" id="card">
+
+    <div class="hack-banner" id="status-banner">
+      <span style="animation: blink-fast 0.6s infinite alternate;">🛡 生体認証システム：待機中</span>
+    </div>
+
+    <!-- 認証＆特定開始画面 -->
+    <div id="auth-screen">
+      <p style="color:#94a3b8; font-size:1.1rem; margin-bottom:8px;">【セキュリティアクセス制限】</p>
+      <p style="font-size:0.92rem; color:#64748b; margin-top:0;">爆弾予告事件の捜査を始めるには生体認証を行ってください。</p>
+      
+      <button class="start-auth-btn" id="auth-btn" onclick="runAuthentication()">
+        🔓 認証を開始する
+      </button>
+
+      <!-- 認証成功後に表示される犯人特定ボタン -->
+      <button class="identify-btn" id="identify-btn" style="display:none;" onclick="runCulpritAnalysis()">
+        🔍 犯人を特定する
+      </button>
+
+      <div id="auth-status-container" style="margin-top:18px; width:100%;">
+        <p id="auth-status" style="font-weight:bold; min-height:24px; color:#facc15; margin:0;"></p>
+        <div id="hacked-text-area" style="margin-top:10px;"></div>
+      </div>
+    </div>
+
+    <!-- メイン捜査画面 -->
+    <div id="investigation-screen">
+      <div class="display-area" id="display"></div>
+
+      <!-- ネタバレを防ぎつつ場所・状況で誘導する【案1】ボタン形式 -->
+      <div class="btn-group">
+        <button class="mic-button" id="btn-1" onclick="startMicAnalysis(1)">
+          <span class="mic-icon">📌</span>
+          <div>
+            <b>【検証1】机5の目撃者（手前側）の証言と照合する</b><br>
+            <span style="font-size:0.78rem; color:#94a3b8; font-weight:normal;">└ プリン（爆弾）の正確な設置場所の検証</span>
+          </div>
+        </button>
+        <button class="mic-button" id="btn-2" onclick="startMicAnalysis(2)">
+          <span class="mic-icon">🏃</span>
+          <div>
+            <b>【検証2】犯人の主張する逃走ルート（机6・8方向）と照合する</b><br>
+            <span style="font-size:0.78rem; color:#94a3b8; font-weight:normal;">└ 犯行直後の現場動線の検証</span>
+          </div>
+        </button>
+        <button class="mic-button" id="btn-3" onclick="startMicAnalysis(3)">
+          <span class="mic-icon">👁️</span>
+          <div>
+            <b>【検証3】机4で作業していた者の視界と足音から照合する</b><br>
+            <span style="font-size:0.78rem; color:#94a3b8; font-weight:normal;">└ 体の向きと実際の逃走方向の検証</span>
+          </div>
+        </button>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+  const LISTEN_COUNTDOWN_SECONDS = 6; 
+  const COOLDOWN_SECONDS = 5;
+  let playerHP = 3;
+
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  function resumeAudio() {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+
+  function playBeepSE() {
+    resumeAudio();
+    const now = audioCtx.currentTime;
+    [1200, 1600, 2400].forEach((freq, idx) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.05);
+      gain.gain.setValueAtTime(0.2, now + idx * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.05 + 0.1);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now + idx * 0.05);
+      osc.stop(now + idx * 0.05 + 0.1);
+    });
+  }
+
+  function playStaticNoiseSE() {
+    resumeAudio();
+    const now = audioCtx.currentTime;
+    const bufferSize = audioCtx.sampleRate * 0.15;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
+
+    const whiteNoise = audioCtx.createBufferSource();
+    whiteNoise.buffer = buffer;
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.setValueAtTime(0.18, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.15);
+
+    whiteNoise.connect(noiseGain);
+    noiseGain.connect(audioCtx.destination);
+    whiteNoise.start(now);
+  }
+
+  function playFastAlarmSingle() {
+    resumeAudio();
+    const now = audioCtx.currentTime;
+
+    const subOsc = audioCtx.createOscillator();
+    const subGain = audioCtx.createGain();
+    subOsc.type = 'sawtooth';
+    subOsc.frequency.setValueAtTime(180, now);
+    subOsc.frequency.exponentialRampToValueAtTime(40, now + 0.45);
+    subGain.gain.setValueAtTime(0.6, now);
+    subGain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+    subOsc.connect(subGain);
+    subGain.connect(audioCtx.destination);
+    subOsc.start(now); subOsc.stop(now + 0.45);
+
+    const sirenOsc = audioCtx.createOscillator();
+    const sirenGain = audioCtx.createGain();
+    sirenOsc.type = 'sawtooth';
+    sirenOsc.frequency.setValueAtTime(500, now);
+    sirenOsc.frequency.linearRampToValueAtTime(1100, now + 0.2);
+    sirenOsc.frequency.linearRampToValueAtTime(500, now + 0.4);
+
+    sirenGain.gain.setValueAtTime(0.35, now);
+    sirenGain.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+
+    sirenOsc.connect(sirenGain);
+    sirenGain.connect(audioCtx.destination);
+    sirenOsc.start(now); sirenOsc.stop(now + 0.45);
+  }
+
+  let alarmIntervalId = null;
+  function start5SecAlarm() {
+    playFastAlarmSingle();
+    alarmIntervalId = setInterval(() => { playFastAlarmSingle(); }, 450);
+    setTimeout(() => { stopAlarm(); }, 4000);
+  }
+
+  function stopAlarm() {
+    if (alarmIntervalId) { clearInterval(alarmIntervalId); alarmIntervalId = null; }
+  }
+
+  function playGlitchSE() {
+    resumeAudio();
+    const now = audioCtx.currentTime;
+    const bufferSize = audioCtx.sampleRate * 0.3;
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const output = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) { output[i] = Math.random() * 2 - 1; }
+
+    const whiteNoise = audioCtx.createBufferSource();
+    whiteNoise.buffer = buffer;
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.setValueAtTime(0.5, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+
+    whiteNoise.connect(noiseGain);
+    noiseGain.connect(audioCtx.destination);
+    whiteNoise.start(now);
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(350, now);
+    osc.frequency.setValueAtTime(80, now + 0.08);
+    osc.frequency.setValueAtTime(500, now + 0.15);
+    osc.frequency.exponentialRampToValueAtTime(20, now + 0.4);
+
+    gain.gain.setValueAtTime(0.4, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.4);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.4);
+  }
+
+  function playSuccessSE() {
+    resumeAudio();
+    const now = audioCtx.currentTime;
+    [523.25, 659.25, 783.99, 1046.50].forEach((freq, idx) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+      gain.gain.setValueAtTime(0.25, now + idx * 0.08);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.2);
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(now + idx * 0.08); osc.stop(now + idx * 0.08 + 0.2);
+    });
+  }
+
+  function playBuzzerSE() {
+    resumeAudio();
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(150, now);
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(now); osc.stop(now + 0.3);
+  }
+
+  function shuffleArray(array) {
+    for (let i = array.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [array[i], array[j]] = [array[j], array[i]];
+    }
+    return array;
+  }
+
+  let clearedCount = 0;
+  const clearedTypes = new Set();
+  let warpInterval = null;
+  let noiseInterval = null;
+
+  const screenBody = document.getElementById('screen-body');
+
+  function triggerScreenDistortion() {
+    if (clearedCount >= 2) return;
+    screenBody.classList.remove('screen-warp-active');
+    void screenBody.offsetWidth;
+    screenBody.classList.add('screen-warp-active');
+    playStaticNoiseSE();
+  }
+
+  const canvas = document.getElementById('static-canvas');
+  const ctx = canvas.getContext('2d');
+  function triggerPartialNoise() {
+    if (clearedCount >= 2) return;
+    const screenW = window.innerWidth;
+    const screenH = window.innerHeight;
+    const noiseWidth = screenW;
+    const noiseHeight = Math.floor(Math.random() * (screenH * 0.25)) + 40;
+    const noiseTop = Math.floor(Math.random() * (screenH - noiseHeight));
+
+    canvas.width = Math.floor(noiseWidth / 2);
+    canvas.height = Math.floor(noiseHeight / 2);
+    canvas.style.top = `${noiseTop}px`;
+    canvas.style.left = `0px`;
+    canvas.style.width = `${noiseWidth}px`;
+    canvas.style.height = `${noiseHeight}px`;
+
+    const imgData = ctx.createImageData(canvas.width, canvas.height);
+    const buffer = new Uint32Array(imgData.data.buffer);
+    for (let i = 0; i < buffer.length; i++) {
+      const gray = Math.random() * 255;
+      buffer[i] = (255 << 24) | (gray << 16) | (gray << 8) | gray;
+    }
+    ctx.putImageData(imgData, 0, 0);
+
+    canvas.classList.remove('part-noise-flash');
+    void canvas.offsetWidth;
+    canvas.classList.add('part-noise-flash');
+    playStaticNoiseSE();
+  }
+
+  let recTimer = null;
+  let activeTargetBtn = null;
+  let currentTestType = 0;
+
+  function updateButtonStates() {
+    for (let i = 1; i <= 3; i++) {
+      const btn = document.getElementById(`btn-${i}`);
+      if (clearedTypes.has(i)) {
+        btn.disabled = true;
+        btn.style.opacity = '0.5';
+      } else {
+        btn.disabled = false;
+      }
+    }
+  }
+
+  /* STEP 1: 生体認証 */
+  function runAuthentication() {
+    playBeepSE();
+    const authBtn = document.getElementById('auth-btn');
+    const identifyBtn = document.getElementById('identify-btn');
+    const authStatus = document.getElementById('auth-status');
+
+    authBtn.disabled = true;
+    authBtn.classList.add('auth-scanning');
+    authBtn.innerHTML = '🔄 捜査員ID照合中...';
+    authStatus.style.color = '#facc15';
+    authStatus.innerText = '指紋・網膜パターンを解析中...';
+
+    setTimeout(() => {
+      playSuccessSE();
+      authBtn.style.display = 'none';
+      identifyBtn.style.display = 'inline-block';
+      authStatus.style.color = '#4ade80';
+      authStatus.innerText = '✅ 認証成功：捜査権限が承認されました';
+    }, 1500);
+  }
+
+  /* STEP 2: 犯人特定処理＆ハッキング演出 */
+  function runCulpritAnalysis() {
+    playBeepSE();
+    const identifyBtn = document.getElementById('identify-btn');
+    const authStatus = document.getElementById('auth-status');
+    const banner = document.getElementById('status-banner');
+    const card = document.getElementById('card');
+    const overlay = document.getElementById('overlay');
+    const hackedTextArea = document.getElementById('hacked-text-area');
+
+    identifyBtn.disabled = true;
+    identifyBtn.innerText = '⚙️ AI解析中...';
+    authStatus.style.color = '#38bdf8';
+    authStatus.innerText = '全証言・現場データを統合解析中...';
+
+    setTimeout(() => {
+      playBeepSE();
+      authStatus.style.color = '#facc15';
+      authStatus.innerText = 'データ照合完了。犯人を特定します...';
+
+      setTimeout(() => {
+        authStatus.style.fontSize = '1.6rem';
+        authStatus.style.color = '#38bdf8';
+        authStatus.innerText = '犯人は、、、、';
+
+        // 赤くフラッシュ＆激しい振動演出
+        setTimeout(() => {
+          triggerScreenDistortion();
+          playGlitchSE();
+          start5SecAlarm();
+
+          screenBody.classList.add('system-hacked', 'screen-warp-active');
+          card.classList.add('glitch-shake', 'card-hacked');
+          banner.classList.add('banner-hacked');
+          overlay.classList.add('strobe-red-05s');
+          document.getElementById('glass-cracks').classList.add('active', 'cracks-hacked');
+          document.getElementById('cctv-osd').classList.add('active');
+
+          banner.innerHTML = '<span style="animation: blink-fast 0.3s infinite alternate; color:#f87171;">⚠️ SYSTEM HACKED / OVERRIDDEN</span>';
+
+          hackedTextArea.innerHTML = `
+            <div style="background:rgba(0,0,0,0.85); border:2px solid #ef4444; padding:12px; border-radius:8px; margin-top:12px; text-align:center;">
+              <p style="color:#ef4444; font-weight:bold; font-size:1.1rem; margin:0 0 5px 0; animation: blink-fast 0.4s infinite alternate;">
+                🚨 [通信割り込み検知]
+              </p>
+              <p style="color:#ffffff; font-size:1.4rem; font-weight:bold; margin:0; text-shadow:0 0 10px #ef4444;">
+                「余計な真似をするんじゃない…！」
+              </p>
+              <p style="color:#fca5a5; font-size:0.8rem; margin:5px 0 0 0;">
+                （何者かによってAI解析結果が書き換えられました）
+              </p>
+            </div>
+          `;
+
+          // 数秒後に捜査画面へ遷移
+          setTimeout(() => {
+            stopAlarm();
+            card.classList.remove('glitch-shake');
+            overlay.classList.remove('strobe-red-05s');
+            document.getElementById('glass-cracks').classList.remove('cracks-hacked');
+
+            warpInterval = setInterval(triggerScreenDistortion, 10000);
+            noiseInterval = setInterval(triggerPartialNoise, 6000);
+
+            document.getElementById('auth-screen').style.display = 'none';
+            document.getElementById('investigation-screen').style.display = 'block';
+
+            const display = document.getElementById('display');
+            display.innerHTML = `
+              <div class="guidance-box">
+                <b style="color:#f87171; font-size:1rem;">⚠️【警報：AI解析システムの異常ログを検知】</b><br>
+                何者かにより解除用AIが改ざんされ、<b>偽の目撃データを真実として組み込んだ「誤った結論」</b>が出力させられています！<br><br>
+                <b style="color:#fde047; font-size:0.95rem;">🔍 【捜査指示】</b><br>
+                <b>ご自身で現場の証言者に直接話を聞き、AIの出力する矛盾を指摘して真犯人を特定してください！</b><br><br>
+                <b>【操作手順】</b><br>
+                1️⃣ 下の【検証1】〜【検証3】を押して改ざんされたAI解析を実行。<br>
+                2️⃣ 表示された<b>「矛盾を指摘する！」</b>ボタンを選択。<br>
+                3️⃣ 証言データと配置図を照らし合わせ、犯人の嘘を見破りましょう！
+              </div>
+              <p class="ai-text">※検証項目を選択して解析を開始してください。</p>
+            `;
+
+            updateButtonStates();
+
+          }, 3200);
+
+        }, 1000);
+
+      }, 1500);
+
+    }, 1500);
+  }
+
+  function cancelMicAnalysis() {
+    playBeepSE();
+    if (recTimer) { clearInterval(recTimer); recTimer = null; }
+    if (activeTargetBtn) { activeTargetBtn.classList.remove('mic-recording'); activeTargetBtn = null; }
+    updateButtonStates();
+    document.getElementById('display').innerHTML = `
+      <p class="ai-text">【解析が中断されました】<br>待機状態に戻りました。検証ボタンを押して再開してください。</p>
+    `;
+  }
+
+  function startMicAnalysis(type) {
+    playBeepSE();
+    currentTestType = type;
+    const display = document.getElementById('display');
+    const card = document.getElementById('card');
+    const overlay = document.getElementById('overlay');
+    const banner = document.getElementById('status-banner');
+    const cracks = document.getElementById('glass-cracks');
+    activeTargetBtn = document.getElementById(`btn-${type}`);
+
+    document.querySelectorAll('.mic-button').forEach(btn => btn.disabled = true);
+    card.classList.remove('card-hacked', 'glitch-shake');
+    banner.classList.remove('banner-hacked');
+    overlay.classList.remove('strobe-red-05s');
+    cracks.classList.remove('cracks-hacked');
+
+    activeTargetBtn.classList.add('mic-recording');
+    let countdown = LISTEN_COUNTDOWN_SECONDS;
+    
+    recTimer = setInterval(() => {
+      display.innerHTML = `
+        <p style="color:#38bdf8; font-size:1.1rem;">🔍 証言データ解析中... 配置図と照合中...</p>
+        <p style="color:#facc15; font-size:1.4rem; font-weight:bold; margin-top:5px;">
+          残り時間: ${countdown} 秒
+        </p>
+        <p style="font-size:0.85rem; color:#94a3b8; margin-bottom:10px;">※レイアウト図とAIデータを分析中...</p>
+        <button class="cancel-btn" onclick="cancelMicAnalysis()">🛑 解析を中止する</button>
+      `;
+      countdown--;
+
+      if (countdown < 0) {
+        clearInterval(recTimer);
+        recTimer = null;
+        runHackingProcess();
+      }
+    }, 1000);
+
+    function runHackingProcess() {
+      if (activeTargetBtn) activeTargetBtn.classList.remove('mic-recording');
+      
+      overlay.classList.add('strobe-red-05s');
+      card.classList.add('glitch-shake', 'card-hacked');
+      banner.classList.add('banner-hacked');
+      if (clearedCount < 2) cracks.classList.add('cracks-hacked');
+      banner.innerHTML = '<span style="animation: blink-fast 0.5s infinite alternate;">⚠️ WARNING: FALSIFIED DATA DETECTED</span>';
+
+      start5SecAlarm();
+
+      display.innerHTML = `
+        <p class="error-text">🚨 [警告] AI解析エラー！ 犯人によって改ざんされた出力結果です！</p>
+        <p class="hack-code">[SYSTEM] OVERRIDING WITH FALSIFIED WITNESS DATA...</p>
+      `;
+
+      setTimeout(() => {
+        playGlitchSE();
+        display.innerHTML = `
+          <p class="error-text">⚠️ 証言と配置図に決定的な不整合が存在します！</p>
+          <p class="hack-code">GENERATING FALSE CONCLUSION... 100%</p>
+        `;
+
+        setTimeout(() => {
+          card.classList.remove('glitch-shake');
+          playGlitchSE();
+
+          if(type === 1) {
+            display.innerHTML = `
+              <p class="error-text">【⚠️ AIの誤った結論：犯行位置】</p>
+              <p>AIの結論：<br>
+              改ざんされたデータに基づき、不審者がいた位置を<br>
+              <span style="color:#fff; background:#b91c1c; padding:3px 6px; font-weight:bold;">『机1の奥側（机8から一番遠い角）』</span><br>
+              と認定しました。</p>
+              <button class="pointing-btn" onclick="openContradictionMenu(1)">⚠️ AIの回答の「矛盾」を指摘する！</button>
+            `;
+          } else if(type === 2) {
+            display.innerHTML = `
+              <p class="error-text">【⚠️ AIの誤った結論：逃走ルート】</p>
+              <p>AIの結論：<br>
+              改ざんされたデータに基づき、犯人は<br>
+              <span style="color:#fff; background:#b91c1c; padding:3px 6px; font-weight:bold;">『机1の奥側から机6の横を通って机8の前へ逃げた』</span><br>
+              というルートで確定しました。</p>
+              <button class="pointing-btn" onclick="openContradictionMenu(2)">⚠️ AIの回答の「矛盾」を指摘する！</button>
+            `;
+          } else if(type === 3) {
+            display.innerHTML = `
+              <p class="error-text">【⚠️ AIの誤った結論：向きと視界】</p>
+              <p>AIの結論：<br>
+              「Bが机6の方を向きながら犯人を目撃した」という前提により、<br>
+              <span style="color:#fff; background:#b91c1c; padding:3px 6px; font-weight:bold;">『机6方向へ走る犯人を、Bが正面（目の前）で視認した』</span><br>
+              と判断しました。</p>
+              <button class="pointing-btn" onclick="openContradictionMenu(3)">⚠️ AIの回答の「矛盾」を指摘する！</button>
+            `;
+          }
+
+          setTimeout(() => {
+            overlay.classList.remove('strobe-red-05s');
+            card.classList.remove('card-hacked');
+            cracks.classList.remove('cracks-hacked');
+            updateButtonStates();
+            stopAlarm();
+          }, 2500);
+
+        }, 1200);
+      }, 1200);
+    }
+  }
+
+  function openContradictionMenu(type) {
+    playBeepSE();
+    const display = document.getElementById('display');
+
+    let choices = [];
+    if(type === 1) {
+      choices = [
+        { text: "机1の奥側は証明の死角になっており、離れた席からは不審者を視認できない", res: "wrong1" },
+        { text: "目の前の机5にいたAの『手前側（自分から一番近い角）』という証言が正しく、奥側という主張は位置の捏造である", res: "correct" },
+        { text: "不審者は机1の手前と奥の両方に複数人いたためデータが乱れている", res: "wrong2" }
+      ];
+    } else if(type === 2) {
+      choices = [
+        { text: "机1から机8への移動時間と足音の速度が物理的に合致しない", res: "wrong1" },
+        { text: "奥側にいたならそのまま机2方向へ抜けるのが自然であり、わざわざ手前の机6側を通って戻るように逃げるのは無駄な動きで不自然", res: "correct" },
+        { text: "机6の周囲には障害物があり走って移動することは不可能である", res: "wrong2" }
+      ];
+    } else if(type === 3) {
+      choices = [
+        { text: "Bの証言通り『机6を向いていたのに誰も目の前を通らなかった』なら、犯人はBの背後を通って机2へ逃げており、机6・机8へ逃げたという主張と矛盾する", res: "correct" },
+        { text: "Bが作業中に下を向いていたため、目の前を走り抜ける犯人を見落としただけである", res: "wrong1" },
+        { text: "BとCの位置関係から、二人の視線が交差して向きが反転して見えてしまった", res: "wrong2" }
+      ];
+    }
+
+    choices = shuffleArray(choices);
+
+    let html = `
+      <p style="color:#facc15; font-weight:bold;">【矛盾の指摘】（試行残数: ${'❤️'.repeat(playerHP)}）</p>
+      <div class="choice-group">
+    `;
+    choices.forEach((c, idx) => {
+      const prefix = String.fromCharCode(65 + idx);
+      html += `<button class="choice-btn" onclick="checkAnswer(${type}, '${c.res}')">${prefix}. ${c.text}</button>`;
+    });
+    html += `</div>`;
+
+    display.innerHTML = html;
+  }
+
+  function checkAnswer(type, result) {
+    const display = document.getElementById('display');
+
+    if (result === 'correct') {
+      playSuccessSE();
+      clearedTypes.add(type);
+      clearedCount = clearedTypes.size;
+      renderSuccessResult(type);
+
+    } else {
+      playBuzzerSE();
+      playerHP--;
+
+      if (playerHP <= 0) {
+        display.innerHTML = `
+          <p class="error-text">💥 【解読失敗】AI端末が緊急ロックされました！</p>
+          <p style="color:#94a3b8; font-size:0.9rem;">誤った指摘が連続したため、ハッキング防御機能により通信が切断されました。</p>
+          <button class="pointing-btn" style="background: linear-gradient(135deg, #dc2626, #991b1b) !important; color:#fff !important; border-color:#fca5a5 !important;" onclick="location.reload()">🔄 最初からやり直す</button>
+        `;
+        return;
+      }
+
+      let cooldown = COOLDOWN_SECONDS;
+      display.innerHTML = `
+        <p class="error-text">❌ 指摘失敗... 矛盾の分析が異なります！（試行残数: ${'❤️'.repeat(playerHP)}）</p>
+        <p style="color:#94a3b8; font-size:0.9rem;">誤った指摘によりシステムエラーが発生しました。<br>復旧までしばらくお待ちください...</p>
+        <button class="pointing-btn" id="retry-btn" disabled style="opacity:0.5; cursor:not-allowed;">⏳ システム復旧まで (${cooldown}秒)</button>
+      `;
+
+      const timer = setInterval(() => {
+        cooldown--;
+        const retryBtn = document.getElementById('retry-btn');
+        if (retryBtn) {
+          retryBtn.innerText = `⏳ システム復旧まで (${cooldown}秒)`;
+        }
+        if (cooldown <= 0) {
+          clearInterval(timer);
+          if (retryBtn) {
+            retryBtn.disabled = false;
+            retryBtn.style.opacity = '1';
+            retryBtn.style.cursor = 'pointer';
+            retryBtn.innerText = '🔄 もう一度矛盾を指摘する';
+            retryBtn.onclick = () => openContradictionMenu(type);
+          }
+        }
+      }, 1000);
+    }
+  }
+
+  function renderSuccessResult(type) {
+    const display = document.getElementById('display');
+    let stageMsg = "";
+
+    if (clearedCount === 1) {
+      document.getElementById('cctv-osd').classList.remove('active');
+      document.getElementById('status-banner').innerHTML = '🟡 AI ERROR CLEARED (1/3)';
+      stageMsg = "<br><span style='color:#facc15;'>📡 【検証1】「犯行位置の不整合」を解明！(1/3)</span>";
+    } 
+    else if (clearedCount === 2) {
+      clearInterval(warpInterval);
+      clearInterval(noiseInterval);
+      document.getElementById('glass-cracks').classList.remove('active');
+      document.getElementById('status-banner').innerHTML = '🟠 AI ERROR CLEARED (2/3)';
+      stageMsg = "<br><span style='color:#facc15;'>🕸️ 【検証2】「逃走動線の不自然さ」を解明！(2/3)</span>";
+    } 
+    else if (clearedCount === 3) {
+      document.body.classList.remove('system-hacked');
+      document.body.classList.add('cyber-cleared');
+      document.getElementById('status-banner').innerHTML = '✨ TRUTH REVEALED: C IS GUILTY';
+      stageMsg = "<br><span style='color:#38bdf8; font-weight:bold;'>🎉 全ての矛盾を解消！AIの偽データを破棄し、真犯人を特定しました！</span>";
+    }
+
+    let detailText = "";
+    if (type === 1) {
+      detailText = "<b>【論理的実証】</b><br>目の前の机5にいたAの『手前側』という目撃が正確です。『奥側』という主張は、現場の配置を知らない犯人がついた嘘です。";
+    } else if (type === 2) {
+      detailText = "<b>【論理的実証】</b><br>机1の奥から逃げるならそのまま机2方向へ抜けるのが最短ルートであり、わざわざ机6の横を通って手前へ戻る動きは不自然極まりありません。";
+    } else if (type === 3) {
+      detailText = "<b>【論理的実証】</b><br>Bが机6の方を向いていた以上、犯人が机6・机8方向へ逃げたならBの視界を通過したはずです。目の前を通らず『背後を通り机2へ抜けた』というBの証言が真実です。";
+    }
+
+    let finalText = "";
+    if (clearedCount === 3) {
+      finalText = `
+        <div style="background:#0284c7; color:#fff; padding:12px; border-radius:8px; margin-top:10px;">
+          <p style="margin:0; font-size:1.1rem; font-weight:bold;">【事件解決：最終解析レポート】</p>
+          <p style="margin:5px 0 0 0;">
+            👑 真犯人：<span style="font-size:1.3rem; color:#facc15; font-weight:bold;">証言者 C（机8）</span><br>
+            🕵️ 事件の真相：<br>
+            Cは自らの罪を逃れてBに濡れ衣を着せるため、AIの解析データを書き換えて嘘の目撃情報を読み込ませていました。AとBの正確な証言と配置図を組み合わることで、Cの作り話が完全に暴かれました！
+          </p>
+        </div>
+      `;
+    }
+
+    display.innerHTML = `
+      <p class="success-text">🔓 矛盾の指摘に成功！</p>
+      <p style="color:#e2e8f0; line-height:1.6;">${detailText} ${stageMsg}</p>
+      ${finalText}
+    `;
+
+    updateButtonStates();
+  }
+</script>
+
+</body>
+</html>
